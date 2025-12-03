@@ -1,6 +1,6 @@
 import pygame
 import math
-from typing import List, Literal
+from typing import List, Literal, Union
 from enum import Enum
 
 pygame.init()
@@ -421,7 +421,7 @@ def create_initial_sources() -> List[Source]:
     return []
 
 
-def create_vehicle(vehicle_type: VehicleType) -> VehicleFourA | VehicleFourB:
+def create_vehicle(vehicle_type: VehicleType) -> Union[VehicleFourA, VehicleFourB]:
     """Create a vehicle at the center."""
     if vehicle_type == '4a':
         return VehicleFourA(WIDTH // 2, HEIGHT // 2, heading=0)

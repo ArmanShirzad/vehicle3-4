@@ -8,7 +8,7 @@ pygame.init()
 # Setup Pygame window
 WIDTH, HEIGHT = 800, 600
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Vehicle 3 - Love and Exploration with Inhibitory Connections")
+pygame.display.set_caption("Vehicle 3 - All Variants (3a Love, 3b Explorer, 3c Multi-sensorial)")
 
 # Setup clock for controlling frame rate
 clock = pygame.time.Clock()
@@ -51,6 +51,237 @@ class Source:
         # Draw label
         label = font.render(self.source_type.value, True, (0, 0, 0))
         surface.blit(label, (int(self.x) - 30, int(self.y) + self.radius + 5))
+
+
+# Vehicle 3a - Love: Uncrossed (straight) inhibitory connections
+# Left sensor inhibits LEFT motor, Right sensor inhibits RIGHT motor
+# Behavior: Slows down near source AND turns TOWARD it → approaches and rests FACING the source
+class VehicleThreeA:
+    """
+    Vehicle 3a with uncrossed (straight) inhibitory connections.
+    - Left sensor → inhibits Left motor (same side)
+    - Right sensor → inhibits Right motor (same side)
+    Behavior: "LOVE" - approaches source, slows down, comes to rest FACING the source.
+    From the book: "staying close by in quiet admiration"
+    """
+    def __init__(self, x: float, y: float, radius: int = 25, heading: float = 0):
+        self.x = x
+        self.y = y
+        self.radius = radius
+        self.heading = heading
+        self.sensor_dist = self.radius * 1.5
+        self.left_motor_speed = 0.0
+        self.right_motor_speed = 0.0
+        
+        self.sensor_angle = 0.7  # Angle from heading for left/right sensors
+        self.base_speed = 2.0
+        self.inhibitory_scale = 0.12
+
+    def _sensor_position(self, side: Literal["left", "right"]) -> tuple[float, float]:
+        """Calculate world position of sensor."""
+        angle_offset = -self.sensor_angle if side == "left" else self.sensor_angle
+        sensor_local_x = math.cos(angle_offset) * self.sensor_dist
+        sensor_local_y = math.sin(angle_offset) * self.sensor_dist
+        cos_heading = math.cos(self.heading)
+        sin_heading = math.sin(self.heading)
+        sensor_world_x = self.x + cos_heading * sensor_local_x - sin_heading * sensor_local_y
+        sensor_world_y = self.y + sin_heading * sensor_local_x + cos_heading * sensor_local_y
+        return (sensor_world_x, sensor_world_y)
+
+    def _intensity_at(self, point_x: float, point_y: float, sources: List[Source]) -> float:
+        """Calculate total intensity from all sources at a given point."""
+        total = 0.0
+        for source in sources:
+            dx = source.x - point_x
+            dy = source.y - point_y
+            distance = math.sqrt(dx * dx + dy * dy)
+            if distance < 0.5:
+                distance = 0.5
+            total += 50000.0 / (distance * distance)
+        return total
+
+    def update(self, sources: List[Source]) -> None:
+        """Update vehicle with uncrossed (straight) inhibitory connections."""
+        left_pos = self._sensor_position("left")
+        right_pos = self._sensor_position("right")
+        
+        left_intensity = self._intensity_at(left_pos[0], left_pos[1], sources)
+        right_intensity = self._intensity_at(right_pos[0], right_pos[1], sources)
+
+        # UNCROSSED (straight) inhibitory: left sensor → left motor, right sensor → right motor
+        # When source is on left: left sensor stronger → left motor slows more → turns LEFT toward source
+        left_motor = self.base_speed - left_intensity * self.inhibitory_scale
+        right_motor = self.base_speed - right_intensity * self.inhibitory_scale
+
+        left_motor = max(0.0, left_motor)
+        right_motor = max(0.0, right_motor)
+        
+        self.left_motor_speed = left_motor
+        self.right_motor_speed = right_motor
+
+        forward_speed = (left_motor + right_motor) / 2
+        turning_rate = (left_motor - right_motor) / (self.radius * 1.5)
+
+        self.heading += turning_rate
+        self.x += forward_speed * math.cos(self.heading)
+        self.y += forward_speed * math.sin(self.heading)
+
+        self.x %= WIDTH
+        self.y %= HEIGHT
+
+    def draw(self, surface: pygame.Surface) -> None:
+        """Draw vehicle with pink color for 3a Love variant."""
+        # Body - pink (love color)
+        pygame.draw.circle(surface, (255, 100, 150), (int(self.x), int(self.y)), self.radius)
+        pygame.draw.circle(surface, (0, 0, 0), (int(self.x), int(self.y)), self.radius, 2)
+
+        # Direction indicator
+        arrow_len = self.radius * 1.5
+        arrow_end_x = self.x + math.cos(self.heading) * arrow_len
+        arrow_end_y = self.y + math.sin(self.heading) * arrow_len
+        pygame.draw.line(surface, (255, 255, 255), 
+                        (int(self.x), int(self.y)), 
+                        (int(arrow_end_x), int(arrow_end_y)), 3)
+
+        # Sensor positions
+        left_pos = self._sensor_position("left")
+        right_pos = self._sensor_position("right")
+        pygame.draw.circle(surface, (255, 0, 0), (int(left_pos[0]), int(left_pos[1])), 5)
+        pygame.draw.circle(surface, (255, 0, 0), (int(right_pos[0]), int(right_pos[1])), 5)
+
+        # Label
+        label_text = font_large.render("3a Love", True, (0, 0, 0))
+        surface.blit(label_text, (int(self.x) - 30, int(self.y) - self.radius - 20))
+        
+        # Motor bars
+        bar_height = 30
+        bar_width = 5
+        max_speed = 3.0
+        left_bar_len = min(bar_height, (self.left_motor_speed / max_speed) * bar_height)
+        right_bar_len = min(bar_height, (self.right_motor_speed / max_speed) * bar_height)
+        
+        pygame.draw.rect(surface, (0, 255, 0), 
+                        (int(self.x) - self.radius - 10, int(self.y) - int(left_bar_len / 2), 
+                         bar_width, int(left_bar_len)))
+        pygame.draw.rect(surface, (0, 255, 0), 
+                        (int(self.x) + self.radius + 5, int(self.y) - int(right_bar_len / 2), 
+                         bar_width, int(right_bar_len)))
+
+
+# Vehicle 3b - Explorer: Crossed inhibitory connections
+# Left sensor inhibits RIGHT motor, Right sensor inhibits LEFT motor
+# Behavior: Slows down near source but turns AWAY from it → orbits/explores around source
+class VehicleThreeB:
+    """
+    Vehicle 3b with crossed inhibitory connections.
+    - Left sensor → inhibits Right motor (opposite side)
+    - Right sensor → inhibits Left motor (opposite side)
+    Behavior: "EXPLORER" - attracted to source (slows down) but faces AWAY from it.
+    From the book: "keeps an eye open for other, perhaps stronger sources"
+    May drift away due to slight perturbations since it faces away from source.
+    """
+    def __init__(self, x: float, y: float, radius: int = 25, heading: float = 0):
+        self.x = x
+        self.y = y
+        self.radius = radius
+        self.heading = heading
+        self.sensor_dist = self.radius * 1.5
+        self.left_motor_speed = 0.0
+        self.right_motor_speed = 0.0
+        
+        self.sensor_angle = 0.7
+        self.base_speed = 2.0
+        self.inhibitory_scale = 0.12
+
+    def _sensor_position(self, side: Literal["left", "right"]) -> tuple[float, float]:
+        """Calculate world position of sensor."""
+        angle_offset = -self.sensor_angle if side == "left" else self.sensor_angle
+        sensor_local_x = math.cos(angle_offset) * self.sensor_dist
+        sensor_local_y = math.sin(angle_offset) * self.sensor_dist
+        cos_heading = math.cos(self.heading)
+        sin_heading = math.sin(self.heading)
+        sensor_world_x = self.x + cos_heading * sensor_local_x - sin_heading * sensor_local_y
+        sensor_world_y = self.y + sin_heading * sensor_local_x + cos_heading * sensor_local_y
+        return (sensor_world_x, sensor_world_y)
+
+    def _intensity_at(self, point_x: float, point_y: float, sources: List[Source]) -> float:
+        """Calculate total intensity from all sources at a given point."""
+        total = 0.0
+        for source in sources:
+            dx = source.x - point_x
+            dy = source.y - point_y
+            distance = math.sqrt(dx * dx + dy * dy)
+            if distance < 0.5:
+                distance = 0.5
+            total += 50000.0 / (distance * distance)
+        return total
+
+    def update(self, sources: List[Source]) -> None:
+        """Update vehicle with crossed inhibitory connections."""
+        left_pos = self._sensor_position("left")
+        right_pos = self._sensor_position("right")
+        
+        left_intensity = self._intensity_at(left_pos[0], left_pos[1], sources)
+        right_intensity = self._intensity_at(right_pos[0], right_pos[1], sources)
+
+        # CROSSED inhibitory: left sensor → right motor, right sensor → left motor
+        # When source is on left: left sensor stronger → right motor slows more → turns RIGHT away from source
+        left_motor = self.base_speed - right_intensity * self.inhibitory_scale
+        right_motor = self.base_speed - left_intensity * self.inhibitory_scale
+
+        left_motor = max(0.0, left_motor)
+        right_motor = max(0.0, right_motor)
+        
+        self.left_motor_speed = left_motor
+        self.right_motor_speed = right_motor
+
+        forward_speed = (left_motor + right_motor) / 2
+        turning_rate = (left_motor - right_motor) / (self.radius * 1.5)
+
+        self.heading += turning_rate
+        self.x += forward_speed * math.cos(self.heading)
+        self.y += forward_speed * math.sin(self.heading)
+
+        self.x %= WIDTH
+        self.y %= HEIGHT
+
+    def draw(self, surface: pygame.Surface) -> None:
+        """Draw vehicle with cyan color for 3b Explorer variant."""
+        # Body - cyan (explorer color)
+        pygame.draw.circle(surface, (0, 200, 200), (int(self.x), int(self.y)), self.radius)
+        pygame.draw.circle(surface, (0, 0, 0), (int(self.x), int(self.y)), self.radius, 2)
+
+        # Direction indicator
+        arrow_len = self.radius * 1.5
+        arrow_end_x = self.x + math.cos(self.heading) * arrow_len
+        arrow_end_y = self.y + math.sin(self.heading) * arrow_len
+        pygame.draw.line(surface, (255, 255, 255), 
+                        (int(self.x), int(self.y)), 
+                        (int(arrow_end_x), int(arrow_end_y)), 3)
+
+        # Sensor positions
+        left_pos = self._sensor_position("left")
+        right_pos = self._sensor_position("right")
+        pygame.draw.circle(surface, (255, 0, 0), (int(left_pos[0]), int(left_pos[1])), 5)
+        pygame.draw.circle(surface, (255, 0, 0), (int(right_pos[0]), int(right_pos[1])), 5)
+
+        # Label
+        label_text = font_large.render("3b Explorer", True, (0, 0, 0))
+        surface.blit(label_text, (int(self.x) - 40, int(self.y) - self.radius - 20))
+        
+        # Motor bars
+        bar_height = 30
+        bar_width = 5
+        max_speed = 3.0
+        left_bar_len = min(bar_height, (self.left_motor_speed / max_speed) * bar_height)
+        right_bar_len = min(bar_height, (self.right_motor_speed / max_speed) * bar_height)
+        
+        pygame.draw.rect(surface, (0, 255, 0), 
+                        (int(self.x) - self.radius - 10, int(self.y) - int(left_bar_len / 2), 
+                         bar_width, int(left_bar_len)))
+        pygame.draw.rect(surface, (0, 255, 0), 
+                        (int(self.x) + self.radius + 5, int(self.y) - int(right_bar_len / 2), 
+                         bar_width, int(right_bar_len)))
 
 
 # Vehicle 3c class with multiple sensor pairs (multi-sensorial)
@@ -235,23 +466,29 @@ def create_initial_sources() -> List[Source]:
     """Create the initial set of sources (empty - user adds manually)."""
     return []  # Clean board - add sources yourself with mouse clicks
 
-def create_vehicle() -> VehicleThreeC:
-    """Create a new vehicle at the center facing right."""
-    return VehicleThreeC(WIDTH // 2, HEIGHT // 2, heading=0)  # heading=0 faces right
+def create_vehicles() -> dict:
+    """Create all three vehicle variants at different starting positions."""
+    return {
+        'a': VehicleThreeA(200, HEIGHT // 2, heading=0),        # Left side - cyan
+        'b': VehicleThreeB(WIDTH // 2, HEIGHT // 2, heading=0), # Center - pink
+        'c': VehicleThreeC(600, HEIGHT // 2, heading=0),        # Right side - purple
+    }
 
-# Create initial sources and vehicle
+# Create initial sources and vehicles
 sources = create_initial_sources()
-vehicle = create_vehicle()
+vehicles = create_vehicles()
 
 # Instructions text
 instructions = [
-    "Vehicle 3c: Multi-sensorial with VALUES and KNOWLEDGE",
-    "1: Temperature (orange) - AVOIDS: turns away + speeds up",
-    "2: Light (yellow) - AGGRESSION: turns toward + speeds up", 
-    "3: Organic (green) - LOVES: turns toward + slows/rests",
-    "4: Oxygen (blue) - EXPLORES: turns away + slows (orbits)",
+    "VEHICLE 3 VARIANTS - Inhibitory Connections",
     "",
-    "Click to add sources | R=Reset board"
+    "3a (Pink) LOVE: Uncrossed inhibitory - approaches and rests FACING source",
+    "3b (Cyan) EXPLORER: Crossed inhibitory - slows near source but faces AWAY",
+    "3c (Purple) MULTI-SENSORIAL: responds to 4 different stimuli",
+    "",
+    "3c responds to: 1=Temp(avoid) 2=Light(aggro) 3=Organic(love) 4=O2(explore)",
+    "",
+    "Click to add sources | R=Reset | Press 1-4 to change source type"
 ]
 
 # Track current source type for mouse clicks
@@ -279,7 +516,7 @@ while running:
             elif event.key == pygame.K_r:
                 # Reset board
                 sources = create_initial_sources()
-                vehicle = create_vehicle()
+                vehicles = create_vehicles()
         # Add new source on mouse click
         elif event.type == pygame.MOUSEBUTTONDOWN:
             sources.append(Source(event.pos[0], event.pos[1], current_source_type))
@@ -288,9 +525,10 @@ while running:
     for source in sources:
         source.draw(screen)
 
-    # Update and draw vehicle
-    vehicle.update(sources)
-    vehicle.draw(screen)
+    # Update and draw all vehicles
+    for vehicle in vehicles.values():
+        vehicle.update(sources)
+        vehicle.draw(screen)
 
     # Draw instructions
     y_offset = 10
